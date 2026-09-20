@@ -10,7 +10,7 @@ export function CommandHistory({ onCollapse }: CommandHistoryProps) {
 
   const handleClear = () => {
     const store = useGitStore.getState();
-    store.resetSimulation();
+    store.resetSimulation(true);
   };
 
   return (

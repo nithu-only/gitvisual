@@ -10,13 +10,17 @@ interface CommitNodeProps {
 }
 
 function CommitNodeComponent({ data, selected }: CommitNodeProps) {
-  const { theme } = useGitStore();
+  const { theme, gitState, visibleBranchCallout, toggleBranchCallout } = useGitStore();
   const isDark = theme === 'dark';
   const [showDebug, setShowDebug] = useState(false);
 
-  const { shortId, message, isHead, isMerge, timestamp, branchColor, branchName, branchCreationPoint } = data;
+  const { shortId, message, isHead, isMerge, timestamp, branchColor, branchName, branchCreationPoints } = data;
   const branches = (data.branches as string[]) || [];
   const commit = data.commit as { id: string; parentIds: string[]; createdOnBranch?: string } | undefined;
+
+  // Branch creation callout: rendered only for the branch whose label was clicked
+  // (or that was just created), and only on the commit where it was created.
+  const calloutBranch = (branchCreationPoints || []).find(name => name === visibleBranchCallout);
 
   const handleNodeClick = useCallback(() => {
     setShowDebug(prev => !prev);
@@ -26,22 +30,50 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
 
   return (
     <div className="relative" style={{ minWidth: 130, maxWidth: 200 }} onClick={handleNodeClick}>
-      {branchCreationPoint && (
-        <div
-          className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.5 rounded text-[8px] font-bold z-10"
-          style={{
-            backgroundColor: getBranchColor(branchCreationPoint),
-            color: 'white',
-            boxShadow: `0 2px 8px ${getBranchColor(branchCreationPoint)}40`,
-          }}
-        >
-          Branch "{branchCreationPoint}" created here
-        </div>
-      )}
 
+      {/* Target handles (incoming edges) */}
       <Handle
         type="target"
         position={Position.Left}
+        id="target-left"
+        style={{
+          width: 6,
+          height: 6,
+          background: branchColor,
+          border: `2px solid ${branchColor}`,
+          top: '50%',
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        style={{
+          width: 6,
+          height: 6,
+          background: branchColor,
+          border: `2px solid ${branchColor}`,
+          left: '50%',
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        style={{
+          width: 6,
+          height: 6,
+          background: branchColor,
+          border: `2px solid ${branchColor}`,
+          left: '50%',
+        }}
+      />
+
+      {/* Source handles (outgoing edges) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="source-right"
         style={{
           width: 6,
           height: 6,
@@ -52,7 +84,32 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
       />
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Bottom}
+        id="source-bottom"
+        style={{
+          width: 6,
+          height: 6,
+          background: branchColor,
+          border: `2px solid ${branchColor}`,
+          left: '50%',
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="source-top"
+        style={{
+          width: 6,
+          height: 6,
+          background: branchColor,
+          border: `2px solid ${branchColor}`,
+          left: '50%',
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
         style={{
           width: 6,
           height: 6,
@@ -64,15 +121,20 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
 
       {Array.isArray(branches) && branches.length > 0 && (
         <div className="flex gap-1 mb-0.5 flex-wrap" style={{ justifyContent: 'center' }}>
-          {branches.map(name => (
-            <span
-              key={name}
-              className="text-[8px] font-bold px-1.5 py-px rounded-sm text-white whitespace-nowrap"
-              style={{ backgroundColor: getBranchColor(name) }}
-            >
-              {name}
-            </span>
-          ))}
+          {branches.map(name => {
+            const hasCreationInfo = Boolean(gitState.branchCreationPoints?.[name]);
+            return (
+              <span
+                key={name}
+                className={`text-[8px] font-bold px-1.5 py-px rounded-sm text-white whitespace-nowrap${hasCreationInfo ? ' branch-label-chip' : ''}`}
+                style={{ backgroundColor: getBranchColor(name) }}
+                title={hasCreationInfo ? `Show where branch "${name}" was created` : undefined}
+                onClick={hasCreationInfo ? (e) => { e.stopPropagation(); toggleBranchCallout(name); } : undefined}
+              >
+                {name}
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -104,6 +166,28 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
         <div className="text-[10px] font-medium leading-tight truncate" style={{ color: 'var(--text-primary)' }}>{message}</div>
         <div className="text-[8px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{timeStr}</div>
       </div>
+
+      {/* Branch creation callout: temporary overlay attached to the creation commit.
+          It lives inside the node, so it follows drags, Auto Layout and zoom automatically
+          and has no effect on ELK layout, edges or node positions. */}
+      {calloutBranch && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-20 flex flex-col items-center"
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ width: 2, height: 8, backgroundColor: getBranchColor(calloutBranch) }} />
+          <div
+            className="whitespace-nowrap px-2 py-1 rounded-md text-[9px] font-bold"
+            style={{
+              backgroundColor: getBranchColor(calloutBranch),
+              color: '#ffffff',
+              boxShadow: `0 2px 8px ${getBranchColor(calloutBranch)}40`,
+            }}
+          >
+            Branch "{calloutBranch}" created here
+          </div>
+        </div>
+      )}
 
       {showDebug && commit && (
         <div

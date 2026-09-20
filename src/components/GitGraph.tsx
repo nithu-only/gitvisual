@@ -6,7 +6,6 @@ import {
   useReactFlow,
   ReactFlowProvider,
   type OnNodeDrag,
-  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useGitStore } from '../store/gitStore';
@@ -14,24 +13,102 @@ import { CommitNode } from '../graph/CommitNode';
 import { gitStateToGraph } from '../graph/gitToGraph';
 import { calculateAutoLayout } from '../graph/layoutEngine';
 import { getBranchColor } from '../graph/branchColors';
-import type { CommitNode as CommitNodeType, GraphLayoutState } from '../graph/types';
+import { recomputeEdgeHandles, handleToSourcePosition, handleToTargetPosition } from '../graph/smartHandles';
+import { saveSession, loadSession } from '../store/persistence';
+import { EdgeGlow } from '../graph/animations/EdgeGlow';
+import { EdgeParticles } from '../graph/animations/EdgeParticles';
+import type { HandleDir } from '../graph/edgePath';
+import type { GraphLayoutState } from '../graph/types';
+import type { CommitNode as CommitNodeType } from '../graph/types';
 import { LayoutGrid, RotateCcw, Maximize } from 'lucide-react';
 
 const nodeTypes = { commit: CommitNode };
 
 function GitGraphInner() {
-  const { gitState, theme } = useGitStore();
+  const { gitState, theme, restoredSessionSeen, setRestoredSessionSeen } = useGitStore();
   const isDark = theme === 'dark';
-  const { fitView, setNodes, setEdges, zoomIn, zoomOut, getZoom } = useReactFlow();
-  const [savedPositions, setSavedPositions] = useState<GraphLayoutState>({});
+  const { fitView, setNodes, setEdges, zoomIn, zoomOut, getZoom, getNodes, getViewport } = useReactFlow();
+  const [savedPositions, setSavedPositions] = useState<GraphLayoutState>(
+    () => loadSession()?.savedPositions ?? {}
+  );
   const [isLayouting, setIsLayouting] = useState(false);
   const prevCommitCount = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [showRestored, setShowRestored] = useState(() => !restoredSessionSeen && loadSession() !== null);
+
+  useEffect(() => {
+    if (showRestored) {
+      const t = setTimeout(() => {
+        setShowRestored(false);
+        setRestoredSessionSeen();
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [showRestored, setRestoredSessionSeen]);
 
   const { nodes: baseNodes, edges: baseEdges } = useMemo(
     () => gitStateToGraph(gitState, savedPositions),
     [gitState, savedPositions]
   );
+
+  // ── Animation state ────────────────────────────────────────────────
+  const pendingAnimation = useGitStore(s => s.pendingAnimation);
+  const clearPendingAnimation = useGitStore(s => s.clearPendingAnimation);
+  const [activeAnim, setActiveAnim] = useState<{
+    source: { x: number; y: number };
+    target: { x: number; y: number };
+    sourceDir: HandleDir;
+    targetDir: HandleDir;
+    color: string;
+    viewport: { x: number; y: number; scale: number };
+  } | null>(null);
+
+  // When a new commit edge appears, trigger a brief traveling-dot animation.
+  useEffect(() => {
+    if (!pendingAnimation) return;
+    const { targetCommitId } = pendingAnimation;
+
+    const edge = baseEdges.find(e => e.target === targetCommitId);
+    if (!edge) return;
+
+    const sp = savedPositions[edge.source] || baseNodes.find(n => n.id === edge.source)?.position;
+    const tp = savedPositions[edge.target] || baseNodes.find(n => n.id === edge.target)?.position;
+    if (!sp || !tp) return;
+
+    const sDir = handleToSourcePosition(edge.sourceHandle || 'source-right');
+    const tDir = handleToTargetPosition(edge.targetHandle || 'target-left');
+
+    const toHandleDir = (pos: any): HandleDir => {
+      if (pos === 0) return 'Left';
+      if (pos === 1) return 'Right';
+      if (pos === 2) return 'Top';
+      return 'Bottom';
+    };
+
+    const sourceBranch = (baseNodes.find(n => n.id === edge.source)?.data as any)?.branchName || 'main';
+
+    setActiveAnim({
+      source: sp,
+      target: tp,
+      sourceDir: toHandleDir(sDir),
+      targetDir: toHandleDir(tDir),
+      color: getBranchColor(sourceBranch),
+      viewport: getViewport(),
+    });
+    clearPendingAnimation();
+  }, [pendingAnimation, baseEdges, baseNodes, savedPositions, clearPendingAnimation, getViewport]);
+
+  const persistPositions = useCallback((positions: GraphLayoutState) => {
+    const s = useGitStore.getState();
+    saveSession({
+      gitState: s.gitState,
+      history: s.history,
+      historyIndex: s.historyIndex,
+      explanations: s.explanations,
+      savedPositions: positions,
+      theme: s.theme,
+    });
+  }, []);
 
   useEffect(() => {
     setNodes(baseNodes);
@@ -47,15 +124,47 @@ function GitGraphInner() {
     prevCommitCount.current = commitCount;
   }, [commitCount, fitView, savedPositions]);
 
-  const onNodeDrag: OnNodeDrag = useCallback((_, node) => {
-    setSavedPositions(prev => ({
-      ...prev,
-      [node.id]: { x: node.position.x, y: node.position.y },
-    }));
-  }, []);
+  const isDragging = useRef(false);
 
-  const onNodeDoubleClick: NodeMouseHandler<CommitNodeType> = useCallback((_, node) => {
-    const commit = node.data.commit;
+  const onNodeDrag: OnNodeDrag = useCallback((_, node) => {
+    isDragging.current = true;
+    setSavedPositions(prev => {
+      const next = { ...prev, [node.id]: { x: node.position.x, y: node.position.y } };
+      return next;
+    });
+  }, [setSavedPositions]);
+
+  const onNodeDragStop: OnNodeDrag = useCallback((_, node) => {
+    isDragging.current = false;
+    setSavedPositions(prev => {
+      const next = { ...prev, [node.id]: { x: node.position.x, y: node.position.y } };
+      persistPositions(next);
+      return next;
+    });
+  }, [setSavedPositions, persistPositions]);
+
+  const onNodesChange = useCallback((changes: any[]) => {
+    // Detect drag start/end.
+    const dragChanges = changes.filter(
+      (c: any) => c.type === 'position' && typeof c.dragging === 'boolean'
+    );
+    if (dragChanges.length > 0) {
+      isDragging.current = dragChanges.some((c: any) => c.dragging);
+    }
+
+    // During drag, recompute edge positions based on live node positions.
+    if (isDragging.current) {
+      const liveNodes = getNodes();
+      const positions = new Map<string, { x: number; y: number }>();
+      liveNodes.forEach(n => {
+        positions.set(n.id, n.position);
+      });
+      setEdges(prevEdges => recomputeEdgeHandles(prevEdges, positions));
+    }
+  }, [getNodes, setEdges]);
+
+  const onNodeDoubleClick = useCallback((_: unknown, node: CommitNodeType) => {
+    const commit = node.data.commit as { id: string };
     const store = useGitStore.getState();
     store.executeCommand(`git log --oneline -1 ${commit.id.substring(0, 7)}`);
   }, []);
@@ -69,20 +178,28 @@ function GitGraphInner() {
         position: positions[n.id] || n.position,
       }));
       setNodes(updatedNodes);
-      setSavedPositions({});
+      setSavedPositions(positions);
+      persistPositions(positions);
+      setEdges(recomputeEdgeHandles(baseEdges, new Map(
+        updatedNodes.map(n => [n.id, n.position] as [string, { x: number; y: number }])
+      )));
       setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
     } catch (err) {
       console.error('Auto layout failed:', err);
     }
     setIsLayouting(false);
-  }, [baseNodes, baseEdges, setNodes, fitView, gitState.branchCreationPoints]);
+  }, [baseNodes, baseEdges, setNodes, setEdges, fitView, gitState, gitState.branchCreationPoints]);
 
   const handleResetLayout = useCallback(() => {
     setSavedPositions({});
-    const freshNodes = gitStateToGraph(gitState).nodes;
-    setNodes(freshNodes);
+    persistPositions({});
+    const freshGraph = gitStateToGraph(gitState);
+    setNodes(freshGraph.nodes);
+    setEdges(recomputeEdgeHandles(freshGraph.edges, new Map(
+      freshGraph.nodes.map(n => [n.id, n.position] as [string, { x: number; y: number }])
+    )));
     setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 50);
-  }, [gitState, setNodes, fitView]);
+  }, [gitState, setNodes, setEdges, fitView]);
 
   const handleFitView = useCallback(() => {
     fitView({ padding: 0.2, duration: 300 });
@@ -126,6 +243,8 @@ function GitGraphInner() {
         edges={baseEdges}
         nodeTypes={nodeTypes}
         onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
+        onNodesChange={onNodesChange}
         onNodeDoubleClick={onNodeDoubleClick}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -148,6 +267,37 @@ function GitGraphInner() {
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, borderRadius: 6 }}
         />
       </ReactFlow>
+
+      {/* ── Continuous edge particle overlay ────────────────────────── */}
+      <EdgeParticles edgeCount={baseEdges.length} />
+
+      {/* ── Commit edge animation overlay ───────────────────────────── */}
+      {activeAnim && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            overflow: 'visible',
+            transform: `translate(${activeAnim.viewport.x}px, ${activeAnim.viewport.y}px) scale(${activeAnim.viewport.scale})`,
+            transformOrigin: '0 0',
+          }}
+        >
+          <EdgeGlow
+            key={`commit-${activeAnim.target.x}-${activeAnim.target.y}`}
+            sourcePos={activeAnim.source}
+            targetPos={activeAnim.target}
+            sourceDir={activeAnim.sourceDir}
+            targetDir={activeAnim.targetDir}
+            color={activeAnim.color}
+            duration={500}
+            onComplete={() => setActiveAnim(null)}
+          />
+        </div>
+      )}
 
       <div className="absolute top-3 left-3 flex items-center gap-1 z-10">
         <button
@@ -202,6 +352,15 @@ function GitGraphInner() {
       {baseNodes.length > 0 && (
         <div className="absolute bottom-3 left-3 text-[9px] mono z-10 px-2 py-1 rounded-md" style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-muted)' }}>
           {baseNodes.length} commits · {baseEdges.length} edges
+        </div>
+      )}
+
+      {showRestored && (
+        <div
+          className="absolute bottom-3 right-3 text-[9px] mono z-10 px-2 py-1 rounded-md"
+          style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-muted)', opacity: 0.8 }}
+        >
+          Restored previous session
         </div>
       )}
     </div>

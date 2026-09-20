@@ -1,6 +1,7 @@
 import type { GitRepositoryState } from '../git/GitRepository';
 import type { CommitNode, CommitEdge, GraphLayoutState } from './types';
 import { getBranchColor } from './branchColors';
+import { getOptimalEdgePositions, Position, sourcePositionToHandle, targetPositionToHandle, handleToSourcePosition, handleToTargetPosition, getMergeAwareEdgePositions } from './smartHandles';
 
 function assignCommitBranches(
   gitState: GitRepositoryState
@@ -88,6 +89,14 @@ export function gitStateToGraph(
 
   const branchCreationPoints = gitState.branchCreationPoints || {};
 
+  // Branch names grouped by the commit where they were created (for callouts).
+  const branchesByCreationCommit = new Map<string, string[]>();
+  Object.entries(branchCreationPoints).forEach(([branchName, creationCommitId]) => {
+    const list = branchesByCreationCommit.get(creationCommitId) || [];
+    list.push(branchName);
+    branchesByCreationCommit.set(creationCommitId, list);
+  });
+
   const nodes: CommitNode[] = sorted.map((commit, index) => {
     const saved = savedPositions?.[commit.id];
     const branches = branchMap.get(commit.id) || [];
@@ -95,13 +104,7 @@ export function gitStateToGraph(
     const isMerge = commit.parentIds.length > 1;
     const branchColor = getBranchColor(commitBranch.get(commit.id) || 'main');
 
-    let branchCreationPoint: string | undefined;
-    for (const [branchName, creationCommitId] of Object.entries(branchCreationPoints)) {
-      if (creationCommitId === commit.id) {
-        branchCreationPoint = branchName;
-        break;
-      }
-    }
+    const createdHere = branchesByCreationCommit.get(commit.id);
 
     return {
       id: commit.id,
@@ -118,28 +121,55 @@ export function gitStateToGraph(
         isMerge,
         branchColor,
         branchName: commitBranch.get(commit.id) || 'main',
-        branchCreationPoint,
+        branchCreationPoints: createdHere || [],
       },
     };
   });
 
   const edges: CommitEdge[] = [];
+
+  // Deduplicate edges: each parent-child Git relationship produces exactly one edge.
+  const seenEdges = new Set<string>();
+
+  // Build a position lookup so edges can be position-aware at graph-build time.
+  const nodePositions = new Map<string, { x: number; y: number }>();
+  nodes.forEach(n => {
+    nodePositions.set(n.id, n.position);
+  });
+
+  // Build a map of which branches were created from which commits
+  const branchCreationMap = new Map<string, string>();
+  gitState.branches.forEach(b => {
+    if (b.createdAtCommitId) {
+      branchCreationMap.set(b.name, b.createdAtCommitId);
+    }
+  });
+
   sorted.forEach(commit => {
     const targetBranch = commitBranch.get(commit.id) || 'main';
     const isMerge = commit.parentIds.length > 1;
 
-    commit.parentIds.forEach(parentId => {
+    commit.parentIds.forEach((parentId, parentIndex) => {
       if (!gitState.commits[parentId]) return;
+
+      // Deduplicate: only one edge per parent→child relationship.
+      const edgeKey = `${parentId}:${commit.id}`;
+      if (seenEdges.has(edgeKey)) return;
+      seenEdges.add(edgeKey);
+
       const sourceBranch = commitBranch.get(parentId) || 'main';
       const isRemote = gitState.remotes.some(r =>
         r.branches.some(rb => rb.commitId === parentId)
       );
 
+      // Determine if this is a branch creation edge
+      const isBranchCreation = sourceBranch !== targetBranch &&
+        branchCreationMap.get(targetBranch) === parentId;
+
+      // Determine if this is a merge edge (child has multiple parents)
+      const isMergeEdge = isMerge;
+
       // Edge coloring rules:
-      // - For merge commits: each parent edge uses that parent's branch color
-      //   (so the two incoming edges are visually distinct)
-      // - For normal commits: the edge uses the child's branch color
-      //   (the child's createdOnBranch tells us which branch it belongs to)
       let edgeColor: string;
       if (isMerge) {
         edgeColor = getBranchColor(sourceBranch);
@@ -147,10 +177,41 @@ export function gitStateToGraph(
         edgeColor = getBranchColor(targetBranch);
       }
 
+      // Position-aware routing: choose sourcePosition/targetPosition based on
+      // actual node positions. These are React Flow Position enum values that
+      // tell React Flow which side of each node to connect from.
+      const sourcePos = nodePositions.get(parentId);
+      const targetPos = nodePositions.get(commit.id);
+
+      let sourcePosition: Position;
+      let targetPosition: Position;
+
+      if (sourcePos && targetPos) {
+        const positions = getOptimalEdgePositions(sourcePos, targetPos, parentId, commit.id);
+        sourcePosition = positions.source;
+        targetPosition = positions.target;
+      } else {
+        sourcePosition = Position.Right;
+        targetPosition = Position.Left;
+      }
+
+      // Merge edge hint: prefer horizontal for primary parent when nearly aligned.
+      // This keeps the main line clean; secondary parents will be optimized in a second pass.
+      if (isMergeEdge && sourcePos && targetPos && parentIndex === 0) {
+        const dx = targetPos.x - sourcePos.x;
+        const dy = targetPos.y - sourcePos.y;
+        if (Math.abs(dy) < Math.abs(dx) * 0.6) {
+          sourcePosition = dx > 0 ? Position.Right : Position.Left;
+          targetPosition = dx > 0 ? Position.Left : Position.Right;
+        }
+      }
+
       edges.push({
         id: `e-${commit.id.substring(0, 7)}-${parentId.substring(0, 7)}`,
         source: parentId,
         target: commit.id,
+        sourceHandle: sourcePositionToHandle(sourcePosition),
+        targetHandle: targetPositionToHandle(targetPosition),
         type: 'smoothstep',
         animated: false,
         style: {
@@ -158,10 +219,28 @@ export function gitStateToGraph(
           stroke: edgeColor,
           strokeDasharray: isRemote ? '6 3' : undefined,
         },
-        data: { sourceBranch, targetBranch, isMerge, isRemote },
+        data: { sourceBranch, targetBranch, isMerge, isRemote, isBranchCreation },
       });
     });
   });
+
+  // Second pass: optimize merge edge handles to avoid crossings.
+  for (const edge of edges) {
+    if (!edge.data?.isMerge) continue;
+    const sourcePos = nodePositions.get(edge.source);
+    const targetPos = nodePositions.get(edge.target);
+    if (!sourcePos || !targetPos) continue;
+
+    const best = getMergeAwareEdgePositions(
+      sourcePos, targetPos,
+      edge.source, edge.target,
+      handleToSourcePosition(edge.sourceHandle || 'source-right'),
+      handleToTargetPosition(edge.targetHandle || 'target-left'),
+      true, edges, nodePositions,
+    );
+    edge.sourceHandle = sourcePositionToHandle(best.source);
+    edge.targetHandle = targetPositionToHandle(best.target);
+  }
 
   return { nodes, edges };
 }

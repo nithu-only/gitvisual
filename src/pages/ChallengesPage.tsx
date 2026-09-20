@@ -29,7 +29,7 @@ export function ChallengesPage() {
   const [showHint, setShowHint] = useState(false);
 
   const handleStart = useCallback((index: number) => {
-    resetSimulation();
+    resetSimulation(false, false);
     const challenge = challenges[index];
     challenge.startingCommands.forEach((cmd) => executeCommand(cmd));
     setSelectedChallenge(index);
@@ -91,7 +91,7 @@ export function ChallengesPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <button onClick={() => { setSelectedChallenge(null); resetSimulation(); }} className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
+            <button onClick={() => { setSelectedChallenge(null); resetSimulation(false, false); }} className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
               &larr; Back to challenges
             </button>
 

@@ -35,7 +35,7 @@ export function GitLabPage() {
           <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-1.5 rounded transition-colors disabled:opacity-25 hover:opacity-80" style={{ color: 'var(--text-secondary)' }} title="Redo">
             <Redo2 size={13} />
           </button>
-          <button onClick={resetSimulation} className="p-1.5 rounded transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }} title="Reset Simulation">
+          <button onClick={() => resetSimulation(true)} className="p-1.5 rounded transition-colors hover:opacity-80" style={{ color: 'var(--text-secondary)' }} title="Reset Simulation">
             <RotateCcw size={13} />
           </button>
           <div className="w-px h-4 mx-1" style={{ backgroundColor: 'var(--border-color)' }} />

@@ -31,7 +31,7 @@ export function TutorialsPage() {
   const [completed, setCompleted] = useState<Set<number>>(new Set());
 
   const handleStart = useCallback((index: number) => {
-    resetSimulation();
+    resetSimulation(false, false);
     setSelectedTutorial(index);
     setCurrentStep(0);
   }, [resetSimulation]);
@@ -50,7 +50,7 @@ export function TutorialsPage() {
   const handleRunAll = useCallback(() => {
     if (selectedTutorial === null) return;
     const tutorial = tutorials[selectedTutorial];
-    resetSimulation();
+    resetSimulation(false, false);
     tutorial.commands.forEach((cmd) => executeCommand(cmd));
     setCurrentStep(tutorial.commands.length);
     setCompleted((prev) => new Set([...prev, selectedTutorial]));
@@ -96,7 +96,7 @@ export function TutorialsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <button onClick={() => { setSelectedTutorial(null); resetSimulation(); }} className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
+            <button onClick={() => { setSelectedTutorial(null); resetSimulation(false, false); }} className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>
               &larr; Back to tutorials
             </button>
 

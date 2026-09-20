@@ -12,18 +12,22 @@ An interactive web application that teaches Git by visualizing commands in real-
 
 ### Visual Graph
 - **Branch-colored edges** — each branch has its own consistent color
-- **Automatic layout** — ELK.js arranges commits in a clean DAG layout
-- **Branch lanes** — branches occupy distinct visual lanes
-- **Merge visualization** — colored parent paths converge at merge commits
+- **Git lane-based layout** — pure deterministic layout engine places main on primary lane with feature branches alternating above/below
+- **Smart handle routing** — edges automatically select optimal source/target handles based on node positions
+- **Merge-edge crossing avoidance** — second pass optimizes merge edge handles to minimize visual crossings
 - **Branch creation annotations** — see exactly where branches were created
+- **Edge particle animation** — subtle traveling dots continuously move along every edge, following exact rendered paths
+- **Commit animation** — brief traveling glow on newly created commit edges
 - **Manual dragging** — reposition nodes without affecting Git state
 - **Pan, zoom, and minimap** — navigate large histories easily
+- **Session persistence** — graph positions and state survive page refresh
 
 ### Learning Tools
 - **Command history** — see all commands you've executed
 - **Explanations** — understand what each command did and why
 - **Repository state** — view HEAD, branches, staging area, and working tree
 - **Dark/Light theme** — comfortable viewing in any environment
+- **Sound effects** — unique audio feedback for each command type
 
 ## Getting Started
 

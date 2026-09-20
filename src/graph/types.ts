@@ -12,7 +12,7 @@ export interface CommitNodeData extends Record<string, unknown> {
   isMerge: boolean;
   branchColor: string;
   branchName: string;
-  branchCreationPoint?: string;
+  branchCreationPoints?: string[];
 }
 
 export type CommitNode = Node<CommitNodeData, 'commit'>;
