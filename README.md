@@ -2,6 +2,8 @@
 
 An interactive web application that teaches Git by visualizing commands in real-time. See what Git actually does when you run commands like `commit`, `branch`, `merge`, and `rebase`.
 
+**Live Demo:** [gitvisualiser.netlify.app](https://gitvisualiser.netlify.app)
+
 ## Features
 
 ### Interactive Git Simulator
