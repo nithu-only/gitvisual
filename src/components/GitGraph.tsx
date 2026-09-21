@@ -60,7 +60,7 @@ function GitGraphInner() {
     sourceDir: HandleDir;
     targetDir: HandleDir;
     color: string;
-    viewport: { x: number; y: number; scale: number };
+    viewport: { x: number; y: number; zoom: number };
   } | null>(null);
 
   // When a new commit edge appears, trigger a brief traveling-dot animation.
@@ -172,7 +172,7 @@ function GitGraphInner() {
   const handleAutoLayout = useCallback(async () => {
     setIsLayouting(true);
     try {
-      const positions = await calculateAutoLayout(baseNodes, baseEdges, gitState.branchCreationPoints || {});
+      const positions = await calculateAutoLayout(baseNodes, baseEdges);
       const updatedNodes = baseNodes.map(n => ({
         ...n,
         position: positions[n.id] || n.position,
@@ -282,7 +282,7 @@ function GitGraphInner() {
             height: '100%',
             pointerEvents: 'none',
             overflow: 'visible',
-            transform: `translate(${activeAnim.viewport.x}px, ${activeAnim.viewport.y}px) scale(${activeAnim.viewport.scale})`,
+            transform: `translate(${activeAnim.viewport.x}px, ${activeAnim.viewport.y}px) scale(${activeAnim.viewport.zoom})`,
             transformOrigin: '0 0',
           }}
         >

@@ -1,20 +1,16 @@
 import type { CommitNode, CommitEdge } from './types';
 
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 70;
 const LANE_HEIGHT = 120;
 const LAYER_SPACING = 250;
 
 export interface GitLayoutMetadata {
   commitBranch: Map<string, string>;
   branchLanes: Map<string, number>;
-  branchCreationPoints: Record<string, string>;
 }
 
 export function computeGitLayoutMetadata(
   nodes: CommitNode[],
-  _edges: CommitEdge[],
-  branchCreationPoints: Record<string, string>
+  _edges: CommitEdge[]
 ): GitLayoutMetadata {
   const commitBranch = new Map<string, string>();
   nodes.forEach(n => {
@@ -38,7 +34,7 @@ export function computeGitLayoutMetadata(
     branchLanes.set(name, i);
   });
 
-  return { commitBranch, branchLanes, branchCreationPoints };
+  return { commitBranch, branchLanes };
 }
 
 function computeTopologicalLayers(
@@ -131,8 +127,7 @@ function assignBranchLanes(
 
 export async function calculateAutoLayout(
   nodes: CommitNode[],
-  _edges: CommitEdge[],
-  branchCreationPoints: Record<string, string> = {}
+  _edges: CommitEdge[]
 ): Promise<Record<string, { x: number; y: number }>> {
   if (nodes.length === 0) return {};
   if (nodes.length === 1) {
