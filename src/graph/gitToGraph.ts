@@ -3,11 +3,44 @@ import type { CommitNode, CommitEdge, GraphLayoutState } from './types';
 import { getBranchColor } from './branchColors';
 import { getOptimalEdgePositions, Position, sourcePositionToHandle, targetPositionToHandle, handleToSourcePosition, handleToTargetPosition, getMergeAwareEdgePositions } from './smartHandles';
 
+function getReachableCommitIds(gitState: GitRepositoryState): Set<string> {
+  const reachable = new Set<string>();
+  const queue: string[] = [];
+
+  // Start from all branch tips
+  gitState.branches.forEach(b => {
+    if (gitState.commits[b.commitId]) queue.push(b.commitId);
+  });
+
+  // Also start from HEAD if it's a detached commit
+  if (gitState.HEAD.type === 'commit' && gitState.commits[gitState.HEAD.value]) {
+    queue.push(gitState.HEAD.value);
+  }
+
+  // BFS backwards through parents
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (reachable.has(id)) continue;
+    reachable.add(id);
+    const commit = gitState.commits[id];
+    if (commit) {
+      for (const parentId of commit.parentIds) {
+        if (!reachable.has(parentId) && gitState.commits[parentId]) {
+          queue.push(parentId);
+        }
+      }
+    }
+  }
+
+  return reachable;
+}
+
 function assignCommitBranches(
-  gitState: GitRepositoryState
+  gitState: GitRepositoryState,
+  reachableIds: Set<string>
 ): Map<string, string> {
   const commitBranch = new Map<string, string>();
-  const commits = Object.values(gitState.commits);
+  const commits = Object.values(gitState.commits).filter(c => reachableIds.has(c.id));
   const sorted = [...commits].sort((a, b) => a.timestamp - b.timestamp);
 
   // Step 1: Use createdOnBranch as the primary source of truth.
@@ -69,7 +102,8 @@ export function gitStateToGraph(
     return { nodes: [], edges: [] };
   }
 
-  const commits = Object.values(gitState.commits);
+  const reachableIds = getReachableCommitIds(gitState);
+  const commits = Object.values(gitState.commits).filter(c => reachableIds.has(c.id));
   const sorted = [...commits].sort((a, b) => a.timestamp - b.timestamp);
 
   const branchMap = new Map<string, string[]>();
@@ -79,7 +113,7 @@ export function gitStateToGraph(
     branchMap.set(b.commitId, list);
   });
 
-  const commitBranch = assignCommitBranches(gitState);
+  const commitBranch = assignCommitBranches(gitState, reachableIds);
 
   const headCommitId = (() => {
     if (gitState.HEAD.type === 'commit') return gitState.HEAD.value;
@@ -150,7 +184,7 @@ export function gitStateToGraph(
     const isMerge = commit.parentIds.length > 1;
 
     commit.parentIds.forEach((parentId, parentIndex) => {
-      if (!gitState.commits[parentId]) return;
+      if (!gitState.commits[parentId] || !reachableIds.has(parentId)) return;
 
       // Deduplicate: only one edge per parent→child relationship.
       const edgeKey = `${parentId}:${commit.id}`;
