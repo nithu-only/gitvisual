@@ -16,7 +16,7 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
 
   const { shortId, message, isHead, isMerge, timestamp, branchColor, branchName, branchCreationPoints } = data;
   const branches = (data.branches as string[]) || [];
-  const commit = data.commit as { id: string; parentIds: string[]; createdOnBranch?: string } | undefined;
+  const commit = data.commit as { id: string; parentIds: string[]; createdOnBranch?: string; author?: string | { name: string; email: string } } | undefined;
 
   // Branch creation callout: rendered only for the branch whose label was clicked
   // (or that was just created), and only on the commit where it was created.
@@ -203,8 +203,17 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
         >
           <div style={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Commit Info</div>
           <div><span style={{ color: 'var(--text-muted)' }}>ID: </span><span style={{ color: branchColor, fontFamily: 'monospace' }}>{shortId}</span></div>
-          <div><span style={{ color: 'var(--text-muted)' }}>Created on branch: </span><span style={{ color: getBranchColor(commit.createdOnBranch || branchName), fontWeight: 700 }}>{commit.createdOnBranch || branchName}</span></div>
-          <div><span style={{ color: 'var(--text-muted)' }}>Parent: </span><span style={{ fontFamily: 'monospace' }}>{commit.parentIds.length > 0 ? commit.parentIds[0].substring(0, 7) : '(root)'}</span></div>
+          <div><span style={{ color: 'var(--text-muted)' }}>Message: </span><span>{message}</span></div>
+          {commit?.author && (
+            typeof commit.author === 'string'
+              ? <div><span style={{ color: 'var(--text-muted)' }}>Author: </span><span>{commit.author}</span></div>
+              : <>
+                  <div><span style={{ color: 'var(--text-muted)' }}>Author: </span><span>{commit.author.name}</span></div>
+                  <div><span style={{ color: 'var(--text-muted)' }}>Email: </span><span>{commit.author.email}</span></div>
+                </>
+          )}
+          <div><span style={{ color: 'var(--text-muted)' }}>Created on branch: </span><span style={{ color: getBranchColor(commit?.createdOnBranch || branchName), fontWeight: 700 }}>{commit?.createdOnBranch || branchName}</span></div>
+          <div><span style={{ color: 'var(--text-muted)' }}>Parent: </span><span style={{ fontFamily: 'monospace' }}>{(commit?.parentIds?.length ?? 0) > 0 ? commit!.parentIds[0].substring(0, 7) : '(root)'}</span></div>
           <div><span style={{ color: 'var(--text-muted)' }}>Graph branch: </span><span style={{ color: branchColor, fontWeight: 700 }}>{branchName}</span></div>
         </div>
       )}

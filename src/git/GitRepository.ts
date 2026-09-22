@@ -1,8 +1,13 @@
+export interface GitIdentity {
+  name: string;
+  email: string;
+}
+
 export interface Commit {
   id: string;
   parentIds: string[];
   message: string;
-  author: string;
+  author: string | GitIdentity;
   timestamp: number;
   files: Record<string, string>;
   createdOnBranch: string;
@@ -79,7 +84,7 @@ export function createCommit(
   parentIds: string[],
   message: string,
   files: Record<string, string> = {},
-  author = 'user',
+  author: string | GitIdentity = 'user',
   createdOnBranch = 'main'
 ): Commit {
   return {
