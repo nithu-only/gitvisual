@@ -239,11 +239,11 @@ function GitGraphInner() {
         />
       </ReactFlow>
 
-      <div className="absolute top-3 left-3 flex items-center gap-1 z-10">
+      <div className="absolute top-3 left-3 right-3 md:right-auto flex flex-wrap md:flex-nowrap items-center gap-1 z-10">
         <button
           onClick={handleAutoLayout}
           disabled={isLayouting}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150 disabled:opacity-40"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150 disabled:opacity-40"
           style={{ backgroundColor: '#1f6feb', color: 'white' }}
           title="Auto arrange commits and branches"
         >
@@ -251,7 +251,7 @@ function GitGraphInner() {
         </button>
         <button
           onClick={handleResetLayout}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150"
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
           title="Reset manual node positions"
         >
@@ -259,21 +259,21 @@ function GitGraphInner() {
         </button>
         <button
           onClick={handleFitView}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150"
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
           title="Fit entire graph into view"
         >
           <Maximize size={12} /> Fit
         </button>
         <div className="flex items-center gap-0.5 ml-1 rounded-md" style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}` }}>
-          <button onClick={handleZoomOut} className="px-1.5 py-1.5 text-[11px] font-bold transition-colors" style={{ color: 'var(--text-secondary)' }} title="Zoom Out">−</button>
+          <button onClick={handleZoomOut} className="px-2 py-2 text-[11px] font-bold transition-colors" style={{ color: 'var(--text-secondary)' }} title="Zoom Out">−</button>
           <span className="px-1 text-[10px] mono font-semibold min-w-[32px] text-center" style={{ color: 'var(--text-muted)' }}>{zoomLevel}%</span>
-          <button onClick={handleZoomIn} className="px-1.5 py-1.5 text-[11px] font-bold transition-colors" style={{ color: 'var(--text-secondary)' }} title="Zoom In">+</button>
+          <button onClick={handleZoomIn} className="px-2 py-2 text-[11px] font-bold transition-colors" style={{ color: 'var(--text-secondary)' }} title="Zoom In">+</button>
         </div>
-        <div className="w-px h-4 mx-0.5" style={{ backgroundColor: borderColor }} />
+        <div className="w-px h-4 mx-0.5 hidden sm:block" style={{ backgroundColor: borderColor }} />
         <button
           onClick={saveProject}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150"
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
           title="Save project to file"
         >
@@ -281,7 +281,7 @@ function GitGraphInner() {
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150"
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
           title="Import project from file"
         >
@@ -289,7 +289,7 @@ function GitGraphInner() {
         </button>
         <button
           onClick={() => { setSettingsName(gitIdentity.name); setSettingsEmail(gitIdentity.email); setShowSettings(true); }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-semibold transition-all duration-150"
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
           title="Git Identity Settings"
         >
@@ -305,7 +305,7 @@ function GitGraphInner() {
       </div>
 
       {branchLegend.length > 0 && (
-        <div className="absolute top-3 right-3 z-10 rounded-md" style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}` }}>
+        <div className="absolute top-3 right-3 z-10 rounded-md hidden md:block" style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}` }}>
           <div className="px-2.5 py-1.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Branches</span>
           </div>

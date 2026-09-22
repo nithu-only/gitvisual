@@ -73,6 +73,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"],
+input,
+a {
+  touch-action: manipulation;
 }
 
 ::-webkit-scrollbar {

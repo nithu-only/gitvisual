@@ -8,7 +8,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-1.5 rounded transition-all duration-150 hover:opacity-80"
+      className="w-9 h-9 flex items-center justify-center rounded transition-all duration-150 hover:opacity-80"
       style={{ color: 'var(--text-secondary)' }}
       title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
