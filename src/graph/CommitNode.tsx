@@ -201,7 +201,7 @@ function CommitNodeComponent({ data, selected }: CommitNodeProps) {
           }}
           onClick={e => e.stopPropagation()}
         >
-          <div style={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Debug: Commit</div>
+          <div style={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Commit Info</div>
           <div><span style={{ color: 'var(--text-muted)' }}>ID: </span><span style={{ color: branchColor, fontFamily: 'monospace' }}>{shortId}</span></div>
           <div><span style={{ color: 'var(--text-muted)' }}>Created on branch: </span><span style={{ color: getBranchColor(commit.createdOnBranch || branchName), fontWeight: 700 }}>{commit.createdOnBranch || branchName}</span></div>
           <div><span style={{ color: 'var(--text-muted)' }}>Parent: </span><span style={{ fontFamily: 'monospace' }}>{commit.parentIds.length > 0 ? commit.parentIds[0].substring(0, 7) : '(root)'}</span></div>

@@ -23,14 +23,6 @@ interface Explanation {
   explanation: string;
 }
 
-export type EdgeAnimationType = 'commit';
-
-export interface EdgeAnimation {
-  type: EdgeAnimationType;
-  /** The commit that the new edge points to (target of the edge). */
-  targetCommitId: string;
-}
-
 // UI-only timer for the branch creation callout auto-dismiss (data in
 // gitState.branchCreationPoints is never touched by this).
 let branchCalloutTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,7 +39,6 @@ interface GitStore {
   selectedChallenge: number | null;
   visibleBranchCallout: string | null;
   restoredSessionSeen: boolean;
-  pendingAnimation: EdgeAnimation | null;
   toggleBranchCallout: (branchName: string) => void;
   setActiveTab: (tab: 'terminal' | 'graph' | 'state' | 'explanation') => void;
   setCurrentPage: (page: 'landing' | 'lab' | 'merge-rebase' | 'tutorials' | 'challenges' | 'explorer' | 'about') => void;
@@ -60,7 +51,6 @@ interface GitStore {
   setSelectedChallenge: (index: number | null) => void;
   setGitState: (state: GitRepositoryState) => void;
   setRestoredSessionSeen: () => void;
-  clearPendingAnimation: () => void;
 }
 
 function parseAndExecute(state: GitRepositoryState, command: string): { state: GitRepositoryState; output: string; explanation: string } {
@@ -175,7 +165,6 @@ export const useGitStore = create<GitStore>((set, get) => ({
   theme: restoredSession?.theme ?? 'dark',
   currentPage: 'landing',
   restoredSessionSeen: false,
-  pendingAnimation: null,
   selectedTutorial: null,
   selectedChallenge: null,
   visibleBranchCallout: null,
@@ -207,24 +196,6 @@ export const useGitStore = create<GitStore>((set, get) => ({
     persistToStorage(get);
 
     const isError = result.output.includes('fatal:') || result.output.includes('error:') || result.output.includes('nothing to commit');
-
-    // ── Detect animation trigger (commit only) ─────────────────────────
-    if (!isError) {
-      const cmdLower = command.trim().toLowerCase();
-
-      if (cmdLower.startsWith('git commit')) {
-        const newCommits = Object.values(result.state.commits).filter(
-          c => !gitState.commits[c.id],
-        );
-        if (newCommits.length > 0) {
-          const newest = newCommits.reduce((a, b) => a.timestamp > b.timestamp ? a : b);
-          const parentId = newest.parentIds[0];
-          if (parentId && gitState.commits[parentId]) {
-            set({ pendingAnimation: { type: 'commit', targetCommitId: newest.id } });
-          }
-        }
-      }
-    }
 
     // UI only: when a new branch is created, auto-show its creation callout for 5s.
     const prevCreationBranches = Object.keys(gitState.branchCreationPoints || {});
@@ -305,5 +276,4 @@ export const useGitStore = create<GitStore>((set, get) => ({
   setSelectedChallenge: (index) => set({ selectedChallenge: index }),
   setGitState: (state) => set({ gitState: state }),
   setRestoredSessionSeen: () => set({ restoredSessionSeen: true }),
-  clearPendingAnimation: () => set({ pendingAnimation: null }),
 }));

@@ -247,6 +247,7 @@ export function gitStateToGraph(
         sourceHandle: sourcePositionToHandle(sourcePosition),
         targetHandle: targetPositionToHandle(targetPosition),
         type: 'smoothstep',
+        pathOptions: { borderRadius: 15 },
         animated: false,
         style: {
           strokeWidth: isRemote ? 1.5 : 2,
@@ -254,7 +255,7 @@ export function gitStateToGraph(
           strokeDasharray: isRemote ? '6 3' : undefined,
         },
         data: { sourceBranch, targetBranch, isMerge, isRemote, isBranchCreation },
-      });
+      } as CommitEdge);
     });
   });
 

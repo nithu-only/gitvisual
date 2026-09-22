@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useGitStore } from '../store/gitStore';
 import { Terminal } from '../components/Terminal';
 import { GitGraph } from '../components/GitGraph';
@@ -13,6 +13,30 @@ export function GitLabPage() {
   const [rightTab, setRightTab] = useState<'state' | 'explanation'>('state');
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useState(180);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const startHeight = useRef(0);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    startY.current = e.clientY;
+    startHeight.current = terminalHeight;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [terminalHeight]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const delta = e.clientY - startY.current;
+    const newHeight = Math.min(Math.max(startHeight.current + delta, 80), 500);
+    setTerminalHeight(newHeight);
+    window.dispatchEvent(new Event('resize'));
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -64,8 +88,17 @@ export function GitLabPage() {
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <div className="h-[180px] border-b flex-shrink-0" style={{ borderColor: 'var(--border-color)' }}>
+          <div style={{ height: terminalHeight, flexShrink: 0, borderColor: 'var(--border-color)' }}>
             <Terminal />
+          </div>
+          <div
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            style={{ cursor: 'ns-resize', borderColor: 'var(--border-color)' }}
+            className="h-[5px] flex-shrink-0 flex items-center justify-center border-b group"
+          >
+            <div className="w-8 h-[3px] rounded-full transition-colors" style={{ backgroundColor: 'var(--border-color)' }} />
           </div>
           <div className="flex-1 overflow-hidden relative">
             <GitGraph />

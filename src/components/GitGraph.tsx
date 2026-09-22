@@ -13,11 +13,8 @@ import { CommitNode } from '../graph/CommitNode';
 import { gitStateToGraph } from '../graph/gitToGraph';
 import { calculateAutoLayout } from '../graph/layoutEngine';
 import { getBranchColor } from '../graph/branchColors';
-import { recomputeEdgeHandles, handleToSourcePosition, handleToTargetPosition } from '../graph/smartHandles';
+import { recomputeEdgeHandles } from '../graph/smartHandles';
 import { saveSession, loadSession } from '../store/persistence';
-import { EdgeGlow } from '../graph/animations/EdgeGlow';
-import { EdgeParticles } from '../graph/animations/EdgeParticles';
-import type { HandleDir } from '../graph/edgePath';
 import type { GraphLayoutState } from '../graph/types';
 import type { CommitNode as CommitNodeType } from '../graph/types';
 import { LayoutGrid, RotateCcw, Maximize } from 'lucide-react';
@@ -27,7 +24,7 @@ const nodeTypes = { commit: CommitNode };
 function GitGraphInner() {
   const { gitState, theme, restoredSessionSeen, setRestoredSessionSeen } = useGitStore();
   const isDark = theme === 'dark';
-  const { fitView, setNodes, setEdges, zoomIn, zoomOut, getZoom, getNodes, getViewport } = useReactFlow();
+  const { fitView, setNodes, setEdges, zoomIn, zoomOut, getZoom, getNodes } = useReactFlow();
   const [savedPositions, setSavedPositions] = useState<GraphLayoutState>(
     () => loadSession()?.savedPositions ?? {}
   );
@@ -50,53 +47,6 @@ function GitGraphInner() {
     () => gitStateToGraph(gitState, savedPositions),
     [gitState, savedPositions]
   );
-
-  // ── Animation state ────────────────────────────────────────────────
-  const pendingAnimation = useGitStore(s => s.pendingAnimation);
-  const clearPendingAnimation = useGitStore(s => s.clearPendingAnimation);
-  const [activeAnim, setActiveAnim] = useState<{
-    source: { x: number; y: number };
-    target: { x: number; y: number };
-    sourceDir: HandleDir;
-    targetDir: HandleDir;
-    color: string;
-    viewport: { x: number; y: number; zoom: number };
-  } | null>(null);
-
-  // When a new commit edge appears, trigger a brief traveling-dot animation.
-  useEffect(() => {
-    if (!pendingAnimation) return;
-    const { targetCommitId } = pendingAnimation;
-
-    const edge = baseEdges.find(e => e.target === targetCommitId);
-    if (!edge) return;
-
-    const sp = savedPositions[edge.source] || baseNodes.find(n => n.id === edge.source)?.position;
-    const tp = savedPositions[edge.target] || baseNodes.find(n => n.id === edge.target)?.position;
-    if (!sp || !tp) return;
-
-    const sDir = handleToSourcePosition(edge.sourceHandle || 'source-right');
-    const tDir = handleToTargetPosition(edge.targetHandle || 'target-left');
-
-    const toHandleDir = (pos: any): HandleDir => {
-      if (pos === 0) return 'Left';
-      if (pos === 1) return 'Right';
-      if (pos === 2) return 'Top';
-      return 'Bottom';
-    };
-
-    const sourceBranch = (baseNodes.find(n => n.id === edge.source)?.data as any)?.branchName || 'main';
-
-    setActiveAnim({
-      source: sp,
-      target: tp,
-      sourceDir: toHandleDir(sDir),
-      targetDir: toHandleDir(tDir),
-      color: getBranchColor(sourceBranch),
-      viewport: getViewport(),
-    });
-    clearPendingAnimation();
-  }, [pendingAnimation, baseEdges, baseNodes, savedPositions, clearPendingAnimation, getViewport]);
 
   const persistPositions = useCallback((positions: GraphLayoutState) => {
     const s = useGitStore.getState();
@@ -267,37 +217,6 @@ function GitGraphInner() {
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, borderRadius: 6 }}
         />
       </ReactFlow>
-
-      {/* ── Continuous edge particle overlay ────────────────────────── */}
-      <EdgeParticles edgeCount={baseEdges.length} />
-
-      {/* ── Commit edge animation overlay ───────────────────────────── */}
-      {activeAnim && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
-            overflow: 'visible',
-            transform: `translate(${activeAnim.viewport.x}px, ${activeAnim.viewport.y}px) scale(${activeAnim.viewport.zoom})`,
-            transformOrigin: '0 0',
-          }}
-        >
-          <EdgeGlow
-            key={`commit-${activeAnim.target.x}-${activeAnim.target.y}`}
-            sourcePos={activeAnim.source}
-            targetPos={activeAnim.target}
-            sourceDir={activeAnim.sourceDir}
-            targetDir={activeAnim.targetDir}
-            color={activeAnim.color}
-            duration={500}
-            onComplete={() => setActiveAnim(null)}
-          />
-        </div>
-      )}
 
       <div className="absolute top-3 left-3 flex items-center gap-1 z-10">
         <button
