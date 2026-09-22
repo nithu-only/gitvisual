@@ -105,15 +105,19 @@ export function executeBranch(state: GitRepositoryState, name?: string): { state
     const branch = state.branches.find((b) => b.name === state.HEAD.value);
     return branch ? state.commits[branch.commitId] : null;
   })();
-  if (!headCommit) {
-    return { state, output: 'fatal: Not a valid object name', explanation: 'Cannot create a branch without a commit.' };
-  }
   const newState = cloneState(state);
-  newState.branches.push({ name, commitId: headCommit.id, createdAtCommitId: headCommit.id });
-  newState.branchCreationPoints[name] = headCommit.id;
-  addReflogEntry(newState, name, headCommit.id, `branch: created`);
-  const output = `Created branch '${name}' pointing to ${headCommit.id.substring(0, 7)}`;
-  const explanation = `Created a new branch reference called '${name}'. A branch is a movable pointer to a commit — it does not duplicate the commit.`;
+  const commitId = headCommit ? headCommit.id : '';
+  newState.branches.push({ name, commitId, createdAtCommitId: commitId || undefined });
+  if (commitId) {
+    newState.branchCreationPoints[name] = commitId;
+  }
+  addReflogEntry(newState, name, commitId || '(no commits)', `branch: created`);
+  const output = commitId
+    ? `Created branch '${name}' pointing to ${commitId.substring(0, 7)}`
+    : `Created branch '${name}' (no commits yet)`;
+  const explanation = commitId
+    ? `Created a new branch reference called '${name}'. A branch is a movable pointer to a commit — it does not duplicate the commit.`
+    : `Created a new branch reference called '${name}'. The branch has no commits yet. Make a commit to give it a target.`;
   return { state: newState, output, explanation };
 }
 
@@ -417,7 +421,12 @@ export function executeReset(
   const newState = cloneState(state);
   moveBranch(newState, currentBranch, commitId);
   newState.HEAD = { type: 'branch', value: currentBranch };
-  if (mode === 'mixed' || mode === 'hard') {
+  if (mode === 'soft') {
+    const originalCommit = state.commits[branch.commitId];
+    if (originalCommit) {
+      newState.stagingArea = { ...originalCommit.files };
+    }
+  } else if (mode === 'mixed' || mode === 'hard') {
     newState.stagingArea = {};
   }
   if (mode === 'hard') {

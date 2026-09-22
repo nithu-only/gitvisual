@@ -90,8 +90,8 @@ export function downloadProject(project: GitvizProject): void {
 
 export function importProject(file: File): Promise<GitvizProject> {
   return new Promise((resolve, reject) => {
-    if (!file.name.endsWith('.gitviz.json')) {
-      reject(new Error('Invalid file type. Expected a .gitviz.json file.'));
+    if (!/\.gitviz(\s*\(\d+\))?\.json$/.test(file.name)) {
+      reject(new Error('Invalid Git Visualizer project file. Please select a .gitviz.json export.'));
       return;
     }
     const reader = new FileReader();
@@ -99,7 +99,7 @@ export function importProject(file: File): Promise<GitvizProject> {
       try {
         const data = JSON.parse(reader.result as string);
         if (!validate(data)) {
-          reject(new Error('Invalid Git Visualizer project file.'));
+          reject(new Error('Invalid Git Visualizer project file. Please select a .gitviz.json export.'));
           return;
         }
         resolve(data);
