@@ -17,12 +17,12 @@ import { recomputeEdgeHandles } from '../graph/smartHandles';
 import { saveSession, loadSession } from '../store/persistence';
 import type { GraphLayoutState } from '../graph/types';
 import type { CommitNode as CommitNodeType } from '../graph/types';
-import { LayoutGrid, RotateCcw, Maximize, Save, Upload, Settings } from 'lucide-react';
+import { LayoutGrid, RotateCcw, Maximize } from 'lucide-react';
 
 const nodeTypes = { commit: CommitNode };
 
 function GitGraphInner() {
-  const { gitState, theme, restoredSessionSeen, setRestoredSessionSeen, saveProject, importProject, gitIdentity, setGitIdentity } = useGitStore();
+  const { gitState, theme, restoredSessionSeen, setRestoredSessionSeen } = useGitStore();
   const isDark = theme === 'dark';
   const { fitView, setNodes, setEdges, zoomIn, zoomOut, getZoom, getNodes } = useReactFlow();
   const [savedPositions, setSavedPositions] = useState<GraphLayoutState>(
@@ -32,27 +32,6 @@ function GitGraphInner() {
   const prevCommitCount = useRef(0);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showRestored, setShowRestored] = useState(() => !restoredSessionSeen && loadSession() !== null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      await importProject(file);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to import project.');
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [importProject]);
-
-  const [showSettings, setShowSettings] = useState(false);
-  const [settingsName, setSettingsName] = useState(gitIdentity.name);
-  const [settingsEmail, setSettingsEmail] = useState(gitIdentity.email);
-
-  const handleSaveSettings = useCallback(() => {
-    setGitIdentity({ name: settingsName, email: settingsEmail });
-    setShowSettings(false);
-  }, [settingsName, settingsEmail, setGitIdentity]);
 
   useEffect(() => {
     if (showRestored) {
@@ -270,38 +249,6 @@ function GitGraphInner() {
           <span className="px-1 text-[10px] mono font-semibold min-w-[32px] text-center" style={{ color: 'var(--text-muted)' }}>{zoomLevel}%</span>
           <button onClick={handleZoomIn} className="px-1.5 py-1.5 text-[11px] font-bold transition-colors" style={{ color: 'var(--text-secondary)' }} title="Zoom In">+</button>
         </div>
-        <div className="w-px h-4 mx-0.5" style={{ backgroundColor: borderColor }} />
-        <button
-          onClick={saveProject}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
-          style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
-          title="Save project to file"
-        >
-          <Save size={12} /> Save
-        </button>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
-          style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
-          title="Import project from file"
-        >
-          <Upload size={12} /> Import
-        </button>
-        <button
-          onClick={() => { setSettingsName(gitIdentity.name); setSettingsEmail(gitIdentity.email); setShowSettings(true); }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150"
-          style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-secondary)' }}
-          title="Git Identity Settings"
-        >
-          <Settings size={12} /> Settings
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".gitviz.json"
-          onChange={handleImport}
-          className="hidden"
-        />
       </div>
 
       {branchLegend.length > 0 && (
@@ -333,42 +280,6 @@ function GitGraphInner() {
           style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, color: 'var(--text-muted)', opacity: 0.8 }}
         >
           Restored previous session
-        </div>
-      )}
-
-      {showSettings && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowSettings(false)}>
-          <div className="rounded-lg p-5 w-80" style={{ backgroundColor: bgSecondary, border: `1px solid ${borderColor}`, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
-            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Git Identity Settings</div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Name</label>
-                <input
-                  type="text"
-                  value={settingsName}
-                  onChange={e => setSettingsName(e.target.value)}
-                  placeholder="e.g. Nithinkumar M"
-                  className="w-full px-2.5 py-1.5 rounded-md text-xs outline-none"
-                  style={{ backgroundColor: isDark ? '#0d1117' : '#f6f8fa', border: `1px solid ${borderColor}`, color: 'var(--text-primary)' }}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Email</label>
-                <input
-                  type="email"
-                  value={settingsEmail}
-                  onChange={e => setSettingsEmail(e.target.value)}
-                  placeholder="e.g. nithin@example.com"
-                  className="w-full px-2.5 py-1.5 rounded-md text-xs outline-none"
-                  style={{ backgroundColor: isDark ? '#0d1117' : '#f6f8fa', border: `1px solid ${borderColor}`, color: 'var(--text-primary)' }}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowSettings(false)} className="px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
-              <button onClick={handleSaveSettings} className="px-3 py-1.5 rounded-md text-[11px] font-semibold text-white" style={{ backgroundColor: '#1f6feb' }}>Save</button>
-            </div>
-          </div>
         </div>
       )}
     </div>

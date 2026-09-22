@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { GitRepositoryState } from '../git/GitRepository';
-import { createEmptyState, type GitIdentity } from '../git/GitRepository';
+import { createEmptyState } from '../git/GitRepository';
 import {
   executeInit, executeAdd, executeCommit, executeBranch,
   executeSwitch, executeMerge, executeRebase, executeStatus,
@@ -15,7 +15,6 @@ import {
   playStashSound, playResetSound, playPushSound, playGenericSound,
 } from '../utils/sounds';
 import { saveSession, loadSession, clearSession } from './persistence';
-import { serializeProject, downloadProject, importProject as importProjectFile } from './projectIO';
 import type { GraphLayoutState } from '../graph/types';
 
 interface Explanation {
@@ -40,8 +39,6 @@ interface GitStore {
   selectedChallenge: number | null;
   visibleBranchCallout: string | null;
   restoredSessionSeen: boolean;
-  projectName: string;
-  gitIdentity: GitIdentity;
   toggleBranchCallout: (branchName: string) => void;
   setActiveTab: (tab: 'terminal' | 'graph' | 'state' | 'explanation') => void;
   setCurrentPage: (page: 'landing' | 'lab' | 'merge-rebase' | 'tutorials' | 'challenges' | 'explorer' | 'about') => void;
@@ -54,12 +51,9 @@ interface GitStore {
   setSelectedChallenge: (index: number | null) => void;
   setGitState: (state: GitRepositoryState) => void;
   setRestoredSessionSeen: () => void;
-  setGitIdentity: (identity: GitIdentity) => void;
-  saveProject: () => void;
-  importProject: (file: File) => Promise<string>;
 }
 
-function parseAndExecute(state: GitRepositoryState, command: string, identity: GitIdentity): { state: GitRepositoryState; output: string; explanation: string } {
+function parseAndExecute(state: GitRepositoryState, command: string): { state: GitRepositoryState; output: string; explanation: string } {
   const parts = command.trim().split(/\s+/);
   const cmd = parts[0];
   const args = parts.slice(1);
@@ -82,7 +76,7 @@ function parseAndExecute(state: GitRepositoryState, command: string, identity: G
         case 'commit': {
           const msgIdx = subArgs.indexOf('-m');
           const message = msgIdx >= 0 ? subArgs.slice(msgIdx + 1).join(' ').replace(/^["']|["']$/g, '') : subArgs.join(' ');
-          return executeCommit(state, message || 'No message', identity);
+          return executeCommit(state, message || 'No message');
         }
         case 'branch': return executeBranch(state, subArgs[0]);
         case 'switch': {
@@ -99,7 +93,7 @@ function parseAndExecute(state: GitRepositoryState, command: string, identity: G
         case 'merge': {
           const name = subArgs[0];
           if (!name) return { state, output: 'error: missing branch name', explanation: 'Usage: git merge <branch>' };
-          return executeMerge(state, name, identity);
+          return executeMerge(state, name);
         }
         case 'rebase': {
           const name = subArgs[0];
@@ -123,12 +117,12 @@ function parseAndExecute(state: GitRepositoryState, command: string, identity: G
           if (!file) return { state, output: 'error: missing file', explanation: 'Usage: git restore <file>' };
           return executeRestore(state, file);
         }
-        case 'revert': return executeRevert(state, subArgs[0], identity);
+        case 'revert': return executeRevert(state, subArgs[0]);
         case 'stash': return executeStash(state);
         case 'cherry-pick': {
           const id = subArgs[0];
           if (!id) return { state, output: 'error: missing commit', explanation: 'Usage: git cherry-pick <commit>' };
-          return executeCherryPick(state, id, identity);
+          return executeCherryPick(state, id);
         }
         case 'reflog': return executeReflog(state);
         default: return { state, output: `git: '${subcmd}' is not a git command`, explanation: `Unknown git subcommand: ${subcmd}` };
@@ -171,8 +165,6 @@ export const useGitStore = create<GitStore>((set, get) => ({
   theme: restoredSession?.theme ?? 'dark',
   currentPage: 'landing',
   restoredSessionSeen: false,
-  projectName: 'Git Visualizer Project',
-  gitIdentity: { name: '', email: '' },
   selectedTutorial: null,
   selectedChallenge: null,
   visibleBranchCallout: null,
@@ -190,13 +182,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
     persistToStorage(get);
   },
   executeCommand: (command) => {
-    const { gitState, history, historyIndex, gitIdentity } = get();
-    const cmdLower = command.trim().toLowerCase();
-    const isCommitCommand = cmdLower.startsWith('git commit') || cmdLower.startsWith('git merge') || cmdLower.startsWith('git revert') || cmdLower.startsWith('git cherry-pick');
-    if (isCommitCommand && (!gitIdentity.name || !gitIdentity.email)) {
-      return { state: gitState, output: 'error: Please configure your Git identity (Name and Email) in Settings before creating commits.', explanation: 'Click the Settings button in the toolbar to configure your Git identity.' };
-    }
-    const result = parseAndExecute(gitState, command, gitIdentity);
+    const { gitState, history, historyIndex } = get();
+    const result = parseAndExecute(gitState, command);
     result.state.commandHistory = [...gitState.commandHistory, command];
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(result.state);
@@ -289,27 +276,4 @@ export const useGitStore = create<GitStore>((set, get) => ({
   setSelectedChallenge: (index) => set({ selectedChallenge: index }),
   setGitState: (state) => set({ gitState: state }),
   setRestoredSessionSeen: () => set({ restoredSessionSeen: true }),
-  setGitIdentity: (identity) => set({ gitIdentity: identity }),
-  saveProject: () => {
-    const s = get();
-    const project = serializeProject(
-      s.gitState, s.history, s.historyIndex, s.explanations,
-      {} as GraphLayoutState, s.projectName, s.gitIdentity,
-    );
-    downloadProject(project);
-  },
-  importProject: async (file: File) => {
-    const project = await importProjectFile(file);
-    const s = project.state;
-    set({
-      gitState: s.gitState,
-      history: s.history,
-      historyIndex: s.historyIndex,
-      explanations: s.explanations,
-      projectName: project.project.name,
-      gitIdentity: project.gitConfig?.user ?? { name: '', email: '' },
-    });
-    persistToStorage(get);
-    return project.project.name;
-  },
 }));

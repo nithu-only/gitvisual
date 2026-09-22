@@ -1,4 +1,4 @@
-import type { GitRepositoryState, Commit, GitIdentity } from '../GitRepository';
+import type { GitRepositoryState, Commit } from '../GitRepository';
 import {
   createCommit, addReflogEntry, moveBranch, cloneState, findCommonAncestor,
 } from '../GitRepository';
@@ -60,7 +60,7 @@ export function executeAdd(state: GitRepositoryState, files: string[]): { state:
   return { state: newState, output, explanation };
 }
 
-export function executeCommit(state: GitRepositoryState, message: string, identity?: GitIdentity): { state: GitRepositoryState; output: string; explanation: string } {
+export function executeCommit(state: GitRepositoryState, message: string): { state: GitRepositoryState; output: string; explanation: string } {
   if (!state.initialized) {
     return { state, output: 'fatal: not a git repository (or any of the parent directories): .git', explanation: 'You need to run git init first.' };
   }
@@ -75,7 +75,7 @@ export function executeCommit(state: GitRepositoryState, message: string, identi
     return branch ? newState.commits[branch.commitId] : null;
   })();
   const parentIds = headCommit ? [headCommit.id] : [];
-  const commit = createCommit(parentIds, message, { ...newState.stagingArea }, identity || 'user', currentBranchName || 'main');
+  const commit = createCommit(parentIds, message, { ...newState.stagingArea }, 'user', currentBranchName || 'main');
   newState.commits[commit.id] = commit;
   if (currentBranchName) {
     moveBranch(newState, currentBranchName, commit.id);
@@ -147,8 +147,7 @@ export function executeSwitch(state: GitRepositoryState, name: string, detach?: 
 
 export function executeMerge(
   state: GitRepositoryState,
-  branchName: string,
-  identity?: GitIdentity
+  branchName: string
 ): { state: GitRepositoryState; output: string; explanation: string } {
   if (!state.initialized) {
     return { state, output: 'fatal: not a git repository', explanation: 'You need to run git init first.' };
@@ -183,7 +182,7 @@ export function executeMerge(
   const sourceCommit = newState.commits[sourceCommitId];
   const allFiles = { ...(headCommit?.files || {}) };
   Object.entries(sourceCommit?.files || {}).forEach(([k, v]) => { allFiles[k] = v; });
-  const mergeCommit = createCommit([destCommitId, sourceCommitId], `Merge branch '${branchName}' into ${currentBranch}`, allFiles, identity || 'user', currentBranch);
+  const mergeCommit = createCommit([destCommitId, sourceCommitId], `Merge branch '${branchName}' into ${currentBranch}`, allFiles, 'user', currentBranch);
   newState.commits[mergeCommit.id] = mergeCommit;
   moveBranch(newState, currentBranch, mergeCommit.id);
   addReflogEntry(newState, currentBranch, mergeCommit.id, `merge: Merge commit`);
@@ -440,7 +439,7 @@ export function executeRestore(state: GitRepositoryState, file: string): { state
   return { state: newState, output: `Restored ${file}`, explanation: `Removed '${file}' from the staging area and working directory.` };
 }
 
-export function executeRevert(state: GitRepositoryState, commitId?: string, identity?: GitIdentity): { state: GitRepositoryState; output: string; explanation: string } {
+export function executeRevert(state: GitRepositoryState, commitId?: string): { state: GitRepositoryState; output: string; explanation: string } {
   if (!state.initialized) {
     return { state, output: 'fatal: not a git repository', explanation: 'You need to run git init first.' };
   }
@@ -460,7 +459,7 @@ export function executeRevert(state: GitRepositoryState, commitId?: string, iden
   const newState = cloneState(state);
   const parentCommit = commit.parentIds.length > 0 ? newState.commits[commit.parentIds[0]] : null;
   const revertedFiles = { ...(parentCommit?.files || {}) };
-  const revertCommit = createCommit([branch.commitId], `Revert "${commit.message}"`, revertedFiles, identity || 'user', currentBranch);
+  const revertCommit = createCommit([branch.commitId], `Revert "${commit.message}"`, revertedFiles, 'user', currentBranch);
   newState.commits[revertCommit.id] = revertCommit;
   moveBranch(newState, currentBranch, revertCommit.id);
   addReflogEntry(newState, currentBranch, revertCommit.id, `revert: ${targetId.substring(0, 7)}`);
@@ -480,7 +479,7 @@ export function executeStash(state: GitRepositoryState): { state: GitRepositoryS
   return { state: newState, output: 'Saved working directory state', explanation: 'Stashed your working directory changes. You can restore them later with git stash pop.' };
 }
 
-export function executeCherryPick(state: GitRepositoryState, cherryPickCommitId: string, _identity?: GitIdentity): { state: GitRepositoryState; output: string; explanation: string } {
+export function executeCherryPick(state: GitRepositoryState, cherryPickCommitId: string): { state: GitRepositoryState; output: string; explanation: string } {
   if (!state.initialized) {
     return { state, output: 'fatal: not a git repository', explanation: 'You need to run git init first.' };
   }
